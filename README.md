@@ -265,6 +265,13 @@ You'll see a view that looks like this:
 * If a process crashes hard (eg, the power on the server turns off or the kernal freezes), some jobs may be in progress and we won't want to lose them. They're safe in their in-progress queue.
 * The reaper will look for worker pools without a heartbeat. It will scan their in-progress queues and requeue anything it finds.
 
+
+### Periodic Jobs
+
+* You can tell a worker pool to enqueue jobs periodically using a cron schedule.
+* Each worker pool will wake up every 2 minutes, and if jobs haven't been scheduled yet, it will schedule all the jobs that would be executed in the next five minutes.
+* Each periodic job that runs at a given time has a predictable byte pattern. Since jobs are scheduled on the scheduled job queue (a Redis z-set), if the same job is scheduled twice for a given time, it can only exist in the z-set once.
+
 ### Terminology reference
 * "worker pool" - a pool of workers
 * "worker" - an individual worker in a single goroutine. Gets a job from redis, does job, gets next job...
