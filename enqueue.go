@@ -82,6 +82,44 @@ func (e *Enqueuer) EnqueueIn(jobName string, secondsFromNow int64, args map[stri
 	return nil
 }
 
+func (e *Enqueuer) EnqueueUnique(jobName string, args map[string]interface{}) (bool, error) {
+	uniqueKey, err := redisKeyUniqueJob(e.Namespace, jobName, args)
+	if err != nil {
+		return false, err
+	}
+
+	job := &Job{
+		Name:       jobName,
+		ID:         makeIdentifier(),
+		EnqueuedAt: nowEpochSeconds(),
+		Args:       args,
+		Unique:     true,
+	}
+
+	rawJSON, err := job.serialize()
+	if err != nil {
+		return false, err
+	}
+
+	conn := e.Pool.Get()
+	defer conn.Close()
+
+	if err := e.addToKnownJobs(conn, jobName); err != nil {
+		return false, err
+	}
+
+	script := redis.NewScript(2, redisLuaEnqueueUnique)
+
+	scriptArgs := make([]interface{}, 0, 3)
+	scriptArgs = append(scriptArgs, e.queuePrefix+jobName) // KEY[1]
+	scriptArgs = append(scriptArgs, uniqueKey)             // KEY[2]
+	scriptArgs = append(scriptArgs, rawJSON)
+
+	res, err := redis.String(script.Do(conn, scriptArgs...))
+
+	return res == "ok", err
+}
+
 func (e *Enqueuer) addToKnownJobs(conn redis.Conn, jobName string) error {
 	needSadd := true
 	now := time.Now().Unix()

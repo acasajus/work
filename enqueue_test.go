@@ -79,3 +79,34 @@ func TestEnqueueIn(t *testing.T) {
 	assert.EqualValues(t, 1, j.ArgInt64("a"))
 	assert.NoError(t, j.ArgError())
 }
+
+func TestEnqueueUnique(t *testing.T) {
+	pool := newTestPool(":6379")
+	ns := "work"
+	cleanKeyspace(ns, pool)
+	enqueuer := NewEnqueuer(ns, pool)
+
+	ok, err := enqueuer.EnqueueUnique("wat", Q{"a": 1, "b": "cool"})
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = enqueuer.EnqueueUnique("wat", Q{"a": 1, "b": "cool"})
+	assert.NoError(t, err)
+	assert.False(t, ok)
+
+	ok, err = enqueuer.EnqueueUnique("wat", Q{"a": 1, "b": "coolio"})
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = enqueuer.EnqueueUnique("wat", nil)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = enqueuer.EnqueueUnique("wat", nil)
+	assert.NoError(t, err)
+	assert.False(t, ok)
+
+	ok, err = enqueuer.EnqueueUnique("taw", nil)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+}
