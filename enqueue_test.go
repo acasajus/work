@@ -1,6 +1,7 @@
 package work
 
 import (
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
@@ -109,4 +110,38 @@ func TestEnqueueUnique(t *testing.T) {
 	ok, err = enqueuer.EnqueueUnique("taw", nil)
 	assert.NoError(t, err)
 	assert.True(t, ok)
+
+	// Process the queues. Ensure the right numbero of jobs was processed
+	var wats, taws int64
+	wp := NewWorkerPool(TestContext{}, 3, ns, pool)
+	wp.JobWithOptions("wat", JobOptions{Priority: 1, MaxFails: 1}, func(job *Job) error {
+		wats++
+		return nil
+	})
+	wp.JobWithOptions("taw", JobOptions{Priority: 1, MaxFails: 1}, func(job *Job) error {
+		taws++
+		return fmt.Errorf("ohno")
+	})
+	wp.Start()
+	wp.Drain()
+	wp.Stop()
+
+	assert.EqualValues(t, 3, wats)
+	assert.EqualValues(t, 1, taws)
+
+	// Enqueue again. Ensure we can.
+	ok, err = enqueuer.EnqueueUnique("wat", Q{"a": 1, "b": "cool"})
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = enqueuer.EnqueueUnique("wat", Q{"a": 1, "b": "coolio"})
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	// Even though taw resulted in an error, we should still be able to re-queue it.
+	// This could result in multiple taws enqueued at the same time in a production system.
+	ok, err = enqueuer.EnqueueUnique("taw", nil)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
 }
