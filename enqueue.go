@@ -30,7 +30,7 @@ func NewEnqueuer(namespace string, pool *redis.Pool) *Enqueuer {
 
 // Enqueue will enqueue the specified job name and arguments. The args param can be nil if no args ar needed.
 // Example: e.Enqueue("send_email", work.Q{"addr": "test@example.com"})
-func (e *Enqueuer) Enqueue(jobName string, args map[string]interface{}) error {
+func (e *Enqueuer) Enqueue(jobName string, args map[string]interface{}) (*Job, error) {
 	job := &Job{
 		Name:       jobName,
 		ID:         makeIdentifier(),
@@ -40,21 +40,21 @@ func (e *Enqueuer) Enqueue(jobName string, args map[string]interface{}) error {
 
 	rawJSON, err := job.serialize()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	conn := e.Pool.Get()
 	defer conn.Close()
 
 	if _, err := conn.Do("LPUSH", e.queuePrefix+jobName, rawJSON); err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := e.addToKnownJobs(conn, jobName); err != nil {
-		return err
+		return job, err
 	}
 
-	return nil
+	return job, nil
 }
 
 // EnqueueIn enqueues a job in the scheduled job queue for execution in secondsFromNow seconds.

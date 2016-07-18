@@ -12,9 +12,15 @@ func TestEnqueue(t *testing.T) {
 	ns := "work"
 	cleanKeyspace(ns, pool)
 	enqueuer := NewEnqueuer(ns, pool)
-	err := enqueuer.Enqueue("wat", Q{"a": 1, "b": "cool"})
-
+	job, err := enqueuer.Enqueue("wat", Q{"a": 1, "b": "cool"})
 	assert.Nil(t, err)
+	assert.Equal(t, "wat", job.Name)
+	assert.True(t, len(job.ID) > 10)                        // Something is in it
+	assert.True(t, job.EnqueuedAt > (time.Now().Unix()-10)) // Within 10 seconds
+	assert.True(t, job.EnqueuedAt < (time.Now().Unix()+10)) // Within 10 seconds
+	assert.Equal(t, "cool", job.ArgString("b"))
+	assert.EqualValues(t, 1, job.ArgInt64("a"))
+	assert.NoError(t, job.ArgError())
 
 	// Make sure "wat" is in the known jobs
 	assert.EqualValues(t, []string{"wat"}, knownJobs(pool, redisKeyKnownJobs(ns)))
@@ -37,8 +43,8 @@ func TestEnqueue(t *testing.T) {
 	assert.NoError(t, j.ArgError())
 
 	// Now enqueue another job, make sure that we can enqueue multiple
-	err = enqueuer.Enqueue("wat", Q{"a": 1, "b": "cool"})
-	err = enqueuer.Enqueue("wat", Q{"a": 1, "b": "cool"})
+	_, err = enqueuer.Enqueue("wat", Q{"a": 1, "b": "cool"})
+	_, err = enqueuer.Enqueue("wat", Q{"a": 1, "b": "cool"})
 	assert.Nil(t, err)
 	assert.EqualValues(t, 2, listSize(pool, redisKeyJobs(ns, "wat")))
 }
